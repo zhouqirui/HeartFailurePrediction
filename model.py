@@ -4,6 +4,8 @@ import paddle
 import paddle.fluid as fluid
 
 USE_CUDA = False
+CLASS_DIM = 2
+EMB_DIM = 128
 
 def load_data(sequences, labels):
     s = pickle.load(open(sequences, 'rb'))
@@ -36,14 +38,17 @@ def split_data(sequences, labels, train=.75, test=.15, validation=.1):
 
 def build_model(input, inputDimSize, embDimSize, hiddenDimSize):
     print(input)
-    emb = fluid.layers.embedding(input=input, size=[inputDimSize, embDimSize])
+    emb = fluid.layers.embedding(input=input, size=[inputDimSize, EMB_DIM])
     print(emb)
     # print(fluid.layers.Print(emb, message = 'Show'))
     x = fluid.layers.fc(input=emb, size=hiddenDimSize * 3)
     print(x)
     gru = fluid.layers.dynamic_gru(input = x, size = hiddenDimSize)
+    print(gru)
+    pool = fluid.layers.sequence_pool(gru, 'max')
+    print(pool)
     # model = fluid.layers.softmax(gru)
-    model = fluid.layers.fc(gru, 2, act='softmax')
+    model = fluid.layers.fc(pool, CLASS_DIM, act='softmax')
 
     return model
 
@@ -87,7 +92,7 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
         acc_l = []
         avg_loss_l = []
         for test_data in train_test_reader():
-            acc_np, avg_loss_np = exe.run(program=train_test_program, feed=train_test_feed(test_data), fetch_list=[acc, avg_loss])
+            acc_np, avg_loss_np = exe.run(program=train_test_program, feed=train_test_feed.feed(test_data), fetch_list=[acc, avg_loss])
             acc_l.append(float(acc_np))
             avg_loss_l.append(float(avg_loss_np))
         acc_val_mean = np.array(acc_l).mean()
@@ -98,6 +103,7 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
     exe = fluid.Executor(place)
 
     feeder = fluid.DataFeeder(feed_list=[sequence, label], place = place)
+    print(type(feeder))
     exe.run(startup_program)
 
     ## The next line could be useless... Will come back later
@@ -112,20 +118,21 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
         # print(list(train_reader())[0])
 
         for step_id, data in enumerate(train_reader()):
-            # print(step_id, data)
+            # print(step_id)
             metrics = exe.run(main_program, feed=feeder.feed(data), fetch_list=[avg_loss, acc])
             if step % 100 == 0:
                 print("Pass {}, Epoch {}, Cost {}".format(step, e, metrics[0]))
             step += 1
-        avg_loss_val, acc_val = train_test(test_program, test_reader, feeder)
+        avg_loss_val, acc_val = train_test(test_program, feeder, test_reader)
         print("Test with Epoch {}, avg_cost: {}, acc: {}".format(e, avg_loss_val, acc_val))
 
         l.append([e, avg_loss_val, acc_val])
 
         # fluid.io.save_inference_model('model.h', )
 
-        best = sorted(l, lambda x:float(x[1]))[0]
-        print(best)
+        best = sorted(l, key = lambda x:float(x[1]))[0]
+        print('Best pass is {}, avg cost is {}'.format(best[0], best[1]))
+        print('Accuracy is {}%'.format(float(best[2]) * 100))
 
 
 

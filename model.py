@@ -14,10 +14,7 @@ def load_data(sequences, labels):
 
 def split_data(sequences, labels, train=.75, test=.15, validation=.1):
     sequences = np.array(sequences)
-    # print(type(sequences))
-    # print(sequences.shape)
     labels = np.array(labels)
-    # print(labels.shape)
     size = len(labels)
     index = np.random.permutation(size)
     nTest = int(size * test)
@@ -37,19 +34,11 @@ def split_data(sequences, labels, train=.75, test=.15, validation=.1):
     return train_x, train_y, test_x, test_y, valid_x, valid_y
 
 def build_model(input, inputDimSize, embDimSize, hiddenDimSize):
-    print(input)
     emb = fluid.layers.embedding(input=input, size=[inputDimSize, EMB_DIM])
-    print(emb)
-    # print(fluid.layers.Print(emb, message = 'Show'))
     x = fluid.layers.fc(input=emb, size=hiddenDimSize * 3)
-    print(x)
     gru = fluid.layers.dynamic_gru(input = x, size = hiddenDimSize)
-    print(gru)
     pool = fluid.layers.sequence_pool(gru, 'max')
-    print(pool)
-    # model = fluid.layers.softmax(gru)
     model = fluid.layers.fc(pool, CLASS_DIM, act='softmax')
-
     return model
 
 
@@ -59,8 +48,6 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
     main_program = fluid.default_main_program()
 
     BATCH_SIZE = 128
-    # train_reader = paddle.batch(paddle.reader.shuffle(train_x, buf_size=500), batch_size = BATCH_SIZE)
-    # test_reader = paddle.batch(test_x, batch_size = BATCH_SIZE)
 
     def train_reader():
         for i in range(len(train_x)):
@@ -76,8 +63,6 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
     label = fluid.layers.data(name='label', shape=[1], dtype='int')
 
     prediction = build_model(sequence, 4893, 500, 100)
-    print(prediction)
-    print(label)
     loss = fluid.layers.cross_entropy(input=prediction, label=label)
     avg_loss = fluid.layers.mean(loss)
     acc = fluid.layers.accuracy(input=prediction, label=label)
@@ -103,7 +88,6 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
     exe = fluid.Executor(place)
 
     feeder = fluid.DataFeeder(feed_list=[sequence, label], place = place)
-    print(type(feeder))
     exe.run(startup_program)
 
     ## The next line could be useless... Will come back later
@@ -113,10 +97,6 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
     step = 0
 
     for e in epochs:
-
-        # print(type(train_reader))
-        # print(list(train_reader())[0])
-
         for step_id, data in enumerate(train_reader()):
             # print(step_id)
             metrics = exe.run(main_program, feed=feeder.feed(data), fetch_list=[avg_loss, acc])
@@ -128,11 +108,11 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
 
         l.append([e, avg_loss_val, acc_val])
 
-        # fluid.io.save_inference_model('model.h', )
+        fluid.io.save_inference_model('./model', feeded_var_names = [sequence.name], target_vars = [prediction], executor = exe)
 
         best = sorted(l, key = lambda x:float(x[1]))[0]
         print('Best pass is {}, avg cost is {}'.format(best[0], best[1]))
-        print('Accuracy is {}%'.format(float(best[2]) * 100))
+        print('Accuracy is {}%.\n'.format(float(best[2]) * 100))
 
 
 
@@ -140,17 +120,6 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
 if __name__ == '__main__':
     sequences, labels = load_data('sequences', 'labels')
     train_x, train_y, test_x, test_y, valid_x, valid_y = split_data(sequences, labels)
-    print(len(train_x), len(train_y), len(test_x), len(test_y))
 
 
-    train(train_x, train_y, test_x, test_y, valid_x, valid_y, 20)
-    # except:
-    #     print('Error')
-    # train_reader = paddle.batch(paddle.reader.shuffle(train_x, buf_size=500), batch_size = BATCH_SIZE)
-    # test_reader = paddle.batch(test_x, batch_size = BATCH_SIZE)
-
-    # sequence = fluid.layers.data(name='sequence', shape=[4893, None], dtype='float')
-    # label = fluid.layers.data(name='label', shape=[1], dtype='int32')
-    # model = build_model(sequence, 4893, 100, 100)
-
-    # cost = fluid.layers.classification_cost(input = model, label = label)
+    train(train_x, train_y, test_x, test_y, valid_x, valid_y, 30)

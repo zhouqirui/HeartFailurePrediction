@@ -21,15 +21,15 @@ def split_data(sequences, labels, train=.75, test=.15, validation=.1):
     nValid = int(size * validation)
 
     testIndex = index[:nTest]
-    validIndex = index[nTest:nTest+nValid]
-    trainIndex = index[nTest+nValid:]
+    validIndex = index[nTest:nTest+nValid] if validation!=0 else None
+    trainIndex = index[nTest+nValid:] if validation!=0 else index[nTest:]
 
     train_x = sequences[trainIndex]
     train_y = labels[trainIndex]
     test_x = sequences[testIndex]
     test_y = labels[testIndex]
-    valid_x = sequences[validIndex]
-    valid_y = labels[validIndex]
+    valid_x = sequences[validIndex] if validation!=0 else None
+    valid_y = labels[validIndex] if validation!=0 else None
 
     return train_x, train_y, test_x, test_y, valid_x, valid_y
 
@@ -47,7 +47,7 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
     startup_program = fluid.default_startup_program()
     main_program = fluid.default_main_program()
 
-    BATCH_SIZE = 128
+    BATCH_SIZE = 64
 
     def train_reader():
         for i in range(len(train_x)):
@@ -98,7 +98,6 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
 
     for e in epochs:
         for step_id, data in enumerate(train_reader()):
-            # print(step_id)
             metrics = exe.run(main_program, feed=feeder.feed(data), fetch_list=[avg_loss, acc])
             if step % 100 == 0:
                 print("Pass {}, Epoch {}, Cost {}".format(step, e, metrics[0]))
@@ -113,7 +112,46 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
         best = sorted(l, key = lambda x:float(x[1]))[0]
         print('Best pass is {}, avg cost is {}'.format(best[0], best[1]))
         print('Accuracy is {}%.\n'.format(float(best[2]) * 100))
+    print('Finished training.\n')
 
+
+def infer(path_to_model, x, y):
+    place = fluid.CUDAPlace(0) if USE_CUDA else fluid.CPUPlace()
+    exe = fluid.Executor(place)
+    exe.run(fluid.default_startup_program())
+
+    lod = []
+    for i in x:
+        lod.append([x for x in i])
+    base_shape = [[len(i) for i in lod]]
+    tensor = fluid.create_lod_tensor(lod, base_shape, place)
+
+    infer_program, feeded_var_names, target_var = fluid.io.load_inference_model(dirname=path_to_model, executor=exe)
+    results = exe.run(infer_program, feed={feeded_var_names[0]:tensor}, fetch_list = target_var)
+    predict = results[0]
+    p = []
+    
+    for i in range(len(predict)):
+        p.append(np.argmax(predict[i]))
+    return p, y
+
+def compute(predict, true_y):
+    TP, TN, FP, FN = 0, 0, 0, 0
+    for i in range(len(predict)):
+        if predict[i] == true_y[i] and predict[i] == 1:
+            TP += 1
+        elif predict[i] == true_y[i] and predict[i] == 0:
+            TN += 1
+        elif predict[i] != true_y[i] and predict[i] == 1:
+            FP += 1
+        elif predict[i] != true_y[i] and predict[i] == 0:
+            FN += 1
+    
+    precision = TP /(TP + FP)
+    sensitivity = TP / (TP + FN)
+    specificity = TN / (FP + TN)
+    print('The precision is {}.'.format(precision))
+    print('The prediction has a sensitivity of {}, and a specificity of {}.'.format(sensitivity, specificity))
 
 
 
@@ -121,5 +159,6 @@ if __name__ == '__main__':
     sequences, labels = load_data('sequences', 'labels')
     train_x, train_y, test_x, test_y, valid_x, valid_y = split_data(sequences, labels)
 
-
-    train(train_x, train_y, test_x, test_y, valid_x, valid_y, 30)
+    train(train_x, train_y, test_x, test_y, valid_x, valid_y, 10)
+    predict, true_y = infer('./model', valid_x, valid_y)
+    compute(predict, true_y)

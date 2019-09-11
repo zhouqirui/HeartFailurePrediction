@@ -129,8 +129,6 @@ def main(admissions, diagnosis):
                 if icd not in icd_types.keys():
                     icd_types[icd] = len(icd_types)
                 encoded_v.append(icd_types[icd])
-                # else:
-                #     encoded_v.append(icd_types[icd])
             encoded_p.append(encoded_v)
         encoded.append(encoded_p)
     print(len(icd_types))
@@ -151,18 +149,12 @@ def main(admissions, diagnosis):
     for patient in encoded:
         sequences.append(patient[:-1])
         labels.append(patient[-1])
-        # for visit in patient:
-        #     if len(visit) > 1:
-        #         sequences.append([visit[:-1]])
-        #         labels.append(visit[-1])
     print(sequences[:10])
-    # print(labels[:10])
 
     converted_hf = []
     for code in hf_list:
         if code in icd_types.keys():
             converted_hf.append(icd_types[code])
-    # print(converted_hf)
 
 
     for i in range(len(labels)):
@@ -187,87 +179,81 @@ def main(admissions, diagnosis):
     pickle.dump(labels, open('labels', 'wb'),protocol=1)
     pickle.dump(time, open('time', 'wb'), protocol=1)
 
-    # pickle.dump(pids, open('PIDs', 'wb'), -1)
-    # pickle.dump(dates, open('DATEs', 'wb'), -1)
-    # pickle.dump(encoded, open('encoded', 'wb'), -1)
-    # pickle.dump(icd_types, open('ICD_types', 'wb'), -1)
-
     return pid_adid, adid_date, adid_icd, patient_visit_order
 
 # def choose_hf(admissions, diagnosis):
-    pid_adid = defaultdict(list)
-    adid_date = dict()
+    # pid_adid = defaultdict(list)
+    # adid_date = dict()
 
     
 
-    adid_icd = defaultdict(list)
-    f = open(diagnosis)
-    for line in f.readlines()[1:]:
-        line = line.strip().split(',')
-        adid, code = int(line[2]), line[4][1:-1]
-        if code.startswith('E'):
-            if len(code)>4:
-                code = code[:4]
-        else:
-            if len(code)>3:
-                code = code[:3]
-        if code != '':
-            adid_icd[adid].append(code)
-    f.close()
+    # adid_icd = defaultdict(list)
+    # f = open(diagnosis)
+    # for line in f.readlines()[1:]:
+    #     line = line.strip().split(',')
+    #     adid, code = int(line[2]), line[4][1:-1]
+    #     if code.startswith('E'):
+    #         if len(code)>4:
+    #             code = code[:4]
+    #     else:
+    #         if len(code)>3:
+    #             code = code[:3]
+    #     if code != '':
+    #         adid_icd[adid].append(code)
+    # f.close()
 
-    f = open(admissions)
-    for line in f.readlines()[1:]:
-        line = line.strip().split(',')
-        pid, adid = int(line[1]), int(line[2])
-        date = datetime.strptime(line[3], '%Y-%m-%d %H:%M:%S')
-        pid_adid[pid].append(adid)
-        adid_date[adid] = date
-    f.close()
+    # f = open(admissions)
+    # for line in f.readlines()[1:]:
+    #     line = line.strip().split(',')
+    #     pid, adid = int(line[1]), int(line[2])
+    #     date = datetime.strptime(line[3], '%Y-%m-%d %H:%M:%S')
+    #     pid_adid[pid].append(adid)
+    #     adid_date[adid] = date
+    # f.close()
 
-    new = dict()
-    for key in pid_adid.keys():
-        if any([adid in pid_adid[key] for adid in adid_icd.keys()]):
-            new[key] = pid_adid[key]
-    pid_adid = new
+    # new = dict()
+    # for key in pid_adid.keys():
+    #     if any([adid in pid_adid[key] for adid in adid_icd.keys()]):
+    #         new[key] = pid_adid[key]
+    # pid_adid = new
 
-    patient_visit_order = dict()
-    for pid, adids in pid_adid.items():
-        if len(adids) >= 2:
-            s = sorted([(adid_date[adid], adid_icd[adid]) for adid in adids])
-            patient_visit_order[pid] = s
+    # patient_visit_order = dict()
+    # for pid, adids in pid_adid.items():
+    #     if len(adids) >= 2:
+    #         s = sorted([(adid_date[adid], adid_icd[adid]) for adid in adids])
+    #         patient_visit_order[pid] = s
 
-    pids = []
-    dates = []
-    icds = []
-    for pid, date_icd in patient_visit_order.items():
-        pids.append(pid)
-        dates.append([i[0] for i in date_icd])
-        icds.append([i[1] for i in date_icd])
+    # pids = []
+    # dates = []
+    # icds = []
+    # for pid, date_icd in patient_visit_order.items():
+    #     pids.append(pid)
+    #     dates.append([i[0] for i in date_icd])
+    #     icds.append([i[1] for i in date_icd])
     
-    icd_types = dict()
-    encoded = []
-    for p in icds:
-        encoded_p = []
-        for v in p:
-            encoded_v = []
-            for icd in v:
-                if icd not in icd_types.keys():
-                    icd_types[icd] = len(icd_types)
-                encoded_v.append(icd_types[icd])
-                # else:
-                #     encoded_v.append(icd_types[icd])
-            encoded_p.append(encoded_v)
-        encoded.append(encoded_p)
+    # icd_types = dict()
+    # encoded = []
+    # for p in icds:
+    #     encoded_p = []
+    #     for v in p:
+    #         encoded_v = []
+    #         for icd in v:
+    #             if icd not in icd_types.keys():
+    #                 icd_types[icd] = len(icd_types)
+    #             encoded_v.append(icd_types[icd])
+    #             # else:
+    #             #     encoded_v.append(icd_types[icd])
+    #         encoded_p.append(encoded_v)
+    #     encoded.append(encoded_p)
 
-    sequence, label = [], []
+    # sequence, label = [], []
     
-    return encoded
+    # return encoded
 
 
 
 
 if __name__ == '__main__':
-
     pid_adid, adid_date, adid_icd, patient_visit_order = main('MIMIC-III/ADMISSIONS.csv', 'MIMIC-III/DIAGNOSES_ICD.csv')
 
     # a = choose_hf('MIMIC-III/ADMISSIONS.csv', 'MIMIC-III/DIAGNOSES_ICD.csv')

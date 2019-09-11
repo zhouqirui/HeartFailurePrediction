@@ -6,6 +6,7 @@ import paddle.fluid as fluid
 USE_CUDA = False
 CLASS_DIM = 2
 EMB_DIM = 128
+BATCH_SIZE = 64
 
 def load_data(sequences, labels):
     s = pickle.load(open(sequences, 'rb'))
@@ -33,11 +34,13 @@ def split_data(sequences, labels, train=.75, test=.15, validation=.1):
 
     return train_x, train_y, test_x, test_y, valid_x, valid_y
 
-def build_model(input, inputDimSize, embDimSize, hiddenDimSize):
+def build_model(input, inputDimSize, hiddenDimSize, dropout=True):
     emb = fluid.layers.embedding(input=input, size=[inputDimSize, EMB_DIM])
     x = fluid.layers.fc(input=emb, size=hiddenDimSize * 3)
     gru = fluid.layers.dynamic_gru(input = x, size = hiddenDimSize)
     pool = fluid.layers.sequence_pool(gru, 'max')
+    if dropout:
+        pool = fluid.layers.dropout(pool, 0.5)
     model = fluid.layers.fc(pool, CLASS_DIM, act='softmax')
     return model
 
@@ -46,8 +49,6 @@ def build_model(input, inputDimSize, embDimSize, hiddenDimSize):
 def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
     startup_program = fluid.default_startup_program()
     main_program = fluid.default_main_program()
-
-    BATCH_SIZE = 64
 
     def train_reader():
         for i in range(len(train_x)):
@@ -62,7 +63,7 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
     sequence = fluid.layers.data(name='sequence', shape=[1], dtype='int',lod_level=1)
     label = fluid.layers.data(name='label', shape=[1], dtype='int')
 
-    prediction = build_model(sequence, 4893, 500, 100)
+    prediction = build_model(sequence, 4893, 100)
     loss = fluid.layers.cross_entropy(input=prediction, label=label)
     avg_loss = fluid.layers.mean(loss)
     acc = fluid.layers.accuracy(input=prediction, label=label)
@@ -107,7 +108,7 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
 
         l.append([e, avg_loss_val, acc_val])
 
-        fluid.io.save_inference_model('./model', feeded_var_names = [sequence.name], target_vars = [prediction], executor = exe)
+        fluid.io.save_inference_model('./model/{}'.format(e), feeded_var_names = [sequence.name], target_vars = [prediction], executor = exe)
 
         best = sorted(l, key = lambda x:float(x[1]))[0]
         print('Best pass is {}, avg cost is {}'.format(best[0], best[1]))
@@ -159,6 +160,7 @@ if __name__ == '__main__':
     sequences, labels = load_data('sequences', 'labels')
     train_x, train_y, test_x, test_y, valid_x, valid_y = split_data(sequences, labels)
 
-    train(train_x, train_y, test_x, test_y, valid_x, valid_y, 10)
-    predict, true_y = infer('./model', valid_x, valid_y)
+    train(train_x, train_y, test_x, test_y, valid_x, valid_y, 25)
+    num = int(input('Load the model from epoch: '))
+    predict, true_y = infer('./model/{}'.format(num), valid_x, valid_y)
     compute(predict, true_y)

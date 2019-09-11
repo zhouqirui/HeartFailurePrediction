@@ -2,6 +2,7 @@ import pickle
 import numpy as np
 import paddle
 import paddle.fluid as fluid
+import sys
 
 USE_CUDA = False
 CLASS_DIM = 2
@@ -34,15 +35,36 @@ def split_data(sequences, labels, train=.75, test=.15, validation=.1):
 
     return train_x, train_y, test_x, test_y, valid_x, valid_y
 
-def build_model(input, inputDimSize, hiddenDimSize, dropout=True):
+def build_GRU_model(input, inputDimSize, hiddenDimSize, dropout=True):
     emb = fluid.layers.embedding(input=input, size=[inputDimSize, EMB_DIM])
     x = fluid.layers.fc(input=emb, size=hiddenDimSize * 3)
     gru = fluid.layers.dynamic_gru(input = x, size = hiddenDimSize)
     pool = fluid.layers.sequence_pool(gru, 'max')
     if dropout:
         pool = fluid.layers.dropout(pool, 0.5)
-    model = fluid.layers.fc(pool, CLASS_DIM, act='softmax')
-    return model
+    prediction = fluid.layers.fc(pool, CLASS_DIM, act='softmax')
+    return prediction
+
+def build_stacked_LSTM_model(input, inputDimSize, hiddenDimSize, stacked_num, dropout=True):
+    emb = fluid.layers.embedding(input=input, size=[inputDimSize, EMB_DIM], is_sparse=True)
+    print(emb)
+    fc1 = fluid.layers.fc(input=emb, size=hiddenDimSize*4)
+    print(fc1)
+    lstm1, cell1 = fluid.layers.dynamic_lstm(input=fc1, size=hiddenDimSize*4)
+    inputs = [fc1, lstm1]
+    print(inputs)
+    for i in range(2, stacked_num+1):
+        fc = fluid.layers.fc(input=inputs, size=hiddenDimSize*4)
+        lstm, cell = fluid.layers.dynamic_lstm(input=fc, size=hiddenDimSize*4, is_reverse=(i%2==0))
+        inputs = [fc, lstm]
+        print(inputs)
+    fc_last = fluid.layers.sequence_pool(input=inputs[0], pool_type='max')
+    lstm_last = fluid.layers.sequence_pool(input=inputs[1], pool_type='max')
+    prediction = fluid.layers.fc(input=[fc_last, lstm_last], size=CLASS_DIM, act='softmax')
+    print(fc_last)
+    print(lstm_last)
+    print(prediction)
+    return prediction
 
 
 
@@ -63,14 +85,15 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
     sequence = fluid.layers.data(name='sequence', shape=[1], dtype='int',lod_level=1)
     label = fluid.layers.data(name='label', shape=[1], dtype='int')
 
-    prediction = build_model(sequence, 4893, 100)
+    # prediction = build_GRU_model(sequence, 4893, 100)
+    prediction = build_stacked_LSTM_model(sequence, 4893, 100, 3)
     loss = fluid.layers.cross_entropy(input=prediction, label=label)
     avg_loss = fluid.layers.mean(loss)
     acc = fluid.layers.accuracy(input=prediction, label=label)
 
-    ## test_program & optimizer
     test_program = main_program.clone(for_test=True)
-    optimizer = fluid.optimizer.AdadeltaOptimizer(learning_rate=0.001)
+    # optimizer = fluid.optimizer.AdadeltaOptimizer(learning_rate=0.001)
+    optimizer = fluid.optimizer.Adagrad(0.002)
     optimizer.minimize(avg_loss)
 
 
@@ -157,10 +180,11 @@ def compute(predict, true_y):
 
 
 if __name__ == '__main__':
+    epoch_num = int(sys.argv[1])
     sequences, labels = load_data('sequences', 'labels')
     train_x, train_y, test_x, test_y, valid_x, valid_y = split_data(sequences, labels)
 
-    train(train_x, train_y, test_x, test_y, valid_x, valid_y, 25)
+    train(train_x, train_y, test_x, test_y, valid_x, valid_y, epoch_num)
     num = int(input('Load the model from epoch: '))
     predict, true_y = infer('./model/{}'.format(num), valid_x, valid_y)
     compute(predict, true_y)

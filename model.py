@@ -170,14 +170,28 @@ def compute(predict, true_y):
     print('The precision is {}.'.format(precision))
     print('The prediction has a sensitivity of {}, and a specificity of {}.'.format(sensitivity, specificity))
 
+def compute_precision(predict, true_y):
+    correct = 0
+    false = 0
+    for i in range(len(predict)):
+        if predict[i] == true_y[i]:
+            correct += 1
+        else:
+            false += 1
+    precision = correct / (correct+false)
+    print('Precision: {}'.format(precision))
+
 
 
 if __name__ == '__main__':
-    epoch_num = int(sys.argv[1])
-    sequences, labels = load_data('sequences', 'labels')
+    sequences = sys.argv[1]
+    labels = sys.argv[2]
+    epoch_num = int(sys.argv[3])
+    sequences, labels = load_data(sequences, labels)
     train_x, train_y, test_x, test_y, valid_x, valid_y = split_data(sequences, labels)
 
     train(train_x, train_y, test_x, test_y, valid_x, valid_y, epoch_num)
     num = int(input('Load the model from epoch: '))
     predict, true_y = infer('./model/{}'.format(num), valid_x, valid_y)
     compute(predict, true_y)
+    # compute_precision(predict, true_y)

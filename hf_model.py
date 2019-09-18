@@ -78,15 +78,15 @@ def train(train_x, train_y, test_x, test_y, valid_x, valid_y, epochs):
     sequence = fluid.layers.data(name='sequence', shape=[1], dtype='int',lod_level=1)
     label = fluid.layers.data(name='label', shape=[1], dtype='int')
 
-    # prediction = build_GRU_model(sequence, 4893, 100) ## For GRU model
-    prediction = build_stacked_LSTM_model(sequence, 4893, 100, 3)
+    prediction = build_GRU_model(sequence, 4893, 100) ## For GRU model
+    # prediction = build_stacked_LSTM_model(sequence, 4893, 100, 3)
     loss = fluid.layers.cross_entropy(input=prediction, label=label)
     avg_loss = fluid.layers.mean(loss)
     acc = fluid.layers.accuracy(input=prediction, label=label)
 
     test_program = main_program.clone(for_test=True)
-    # optimizer = fluid.optimizer.AdadeltaOptimizer(learning_rate=0.001) ## For GRU model
-    optimizer = fluid.optimizer.Adagrad(0.002)
+    optimizer = fluid.optimizer.AdadeltaOptimizer(learning_rate=0.001) ## For GRU model
+    # optimizer = fluid.optimizer.Adagrad(0.002)
     optimizer.minimize(avg_loss)
 
 
@@ -164,22 +164,22 @@ def compute(predict, true_y):
         elif predict[i] != true_y[i] and predict[i] == 0:
             FN += 1
     
-    precision = TP /(TP + FP)
+    acc = TP /(TP + FP)
     sensitivity = TP / (TP + FN)
     specificity = TN / (FP + TN)
-    print('The precision is {}.'.format(precision))
+    print('The accuracy is {}.'.format(acc))
     print('The prediction has a sensitivity of {}, and a specificity of {}.'.format(sensitivity, specificity))
 
-def compute_precision(predict, true_y):
-    correct = 0
-    false = 0
-    for i in range(len(predict)):
-        if predict[i] == true_y[i]:
-            correct += 1
-        else:
-            false += 1
-    precision = correct / (correct+false)
-    print('Precision: {}'.format(precision))
+# def compute_precision(predict, true_y):
+#     correct = 0
+#     false = 0
+#     for i in range(len(predict)):
+#         if predict[i] == true_y[i]:
+#             correct += 1
+#         else:
+#             false += 1
+#     precision = correct / (correct+false)
+    # print('Precision: {}'.format(precision))
 
 
 
